@@ -159,11 +159,14 @@ function Game() {
                                 className={`card ${flipped.includes(index) || matched.includes(index) ? "flipped" : ""}`}
                                 onClick={() => handleCardClick(index)}
                             >
-                                {flipped.includes(index) || matched.includes(index) ? (
-                                    <img src={card} alt="Game Card" width="120" loading="eager" />
-                                ) : (
-                                    <img src={cardBack} alt="Game Card" width="120" loading="lazy" />
-                                )}
+                                <div className="card-inner">
+                                    <div className="card-front">
+                                        <img src={card} alt="Game Card" width="120" loading="eager" />
+                                    </div>
+                                    <div className="card-back">
+                                        <img src={cardBack} alt="Game Card" width="120" loading="lazy" />
+                                    </div>
+                            </div>
                             </div>
                         ))}
                     </div>
