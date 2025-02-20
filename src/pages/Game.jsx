@@ -33,11 +33,25 @@ const allCards = [
     card11, card12, card13, card14, card15, card16, card17, card18, card19, card20
 ];
 
+// Preload images function
+const preloadImages = (images) => {
+    return Promise.all(
+        images.map((image) => {
+            return new Promise((resolve, reject) => {
+                const img = new Image();
+                img.src = image;
+                img.onload = resolve;
+                img.onerror = reject;
+            });
+        })
+    );
+};
+
 // Function to randomly pick 8 pairs (16 cards total)
 function selectRandomPairs() {
-  let shuffled = [...allCards].sort(() => Math.random() - 0.5); // Shuffle
-  let selectedCards = shuffled.slice(0, 8); // Pick 8 unique cards
-  return [...selectedCards, ...selectedCards].sort(() => Math.random() - 0.5); // Duplicate & shuffle again
+    let shuffled = [...allCards].sort(() => Math.random() - 0.5); // Shuffle
+    let selectedCards = shuffled.slice(0, 8); // Pick 8 unique cards
+    return [...selectedCards, ...selectedCards].sort(() => Math.random() - 0.5); // Duplicate & shuffle again
 }
 
 function Game() {
@@ -48,36 +62,41 @@ function Game() {
     const [timer, setTimer] = useState(0);
     const [isRunning, setIsRunning] = useState(false);
     const [isPaused, setIsPaused] = useState(false);
+    const [loading, setLoading] = useState(true); // Loading state
 
     useEffect(() => {
-        setCards(selectRandomPairs());
-        setIsRunning(true);
+        // Preload images before game starts
+        preloadImages([...allCards, cardBack]).then(() => {
+            setCards(selectRandomPairs());
+            setIsRunning(true);
+            setLoading(false); // Hide loading screen once images are preloaded
+        });
     }, []);
 
     useEffect(() => {
         if (isRunning && !isPaused) {
-        const interval = setInterval(() => setTimer((t) => t + 1), 1000);
-        return () => clearInterval(interval);
+            const interval = setInterval(() => setTimer((t) => t + 1), 1000);
+            return () => clearInterval(interval);
         }
     }, [isRunning, isPaused]);
 
     function handleCardClick(index) {
         if (flipped.length < 2 && !flipped.includes(index) && !matched.includes(index)) {
-        setFlipped([...flipped, index]);
+            setFlipped([...flipped, index]);
         }
         if (flipped.length === 1) {
-        setTimeout(() => checkMatch(flipped[0], index), 800);
+            setTimeout(() => checkMatch(flipped[0], index), 800);
         }
     }
 
     function checkMatch(first, second) {
         if (cards[first] === cards[second]) {
-        setMatched([...matched, first, second]);
-        if (matched.length + 2 === cards.length) {
-            setIsRunning(false);
-            saveBestScore(timer); // Save best score to Firebase
-            alert(`🎉 You won in ${timer} seconds!`);
-        }
+            setMatched([...matched, first, second]);
+            if (matched.length + 2 === cards.length) {
+                setIsRunning(false);
+                saveBestScore(timer); // Save best score to Firebase
+                alert(`🎉 You won in ${timer} seconds!`);
+            }
         }
         setFlipped([]);
     }
@@ -90,18 +109,18 @@ function Game() {
         const userScoreRef = ref(db, `Leaderboard/${user.uid}`); // Reference to leaderboard data
 
         get(userRef).then((snapshot) => {
-        if (snapshot.exists()) {
-            const pseudo = snapshot.val().pseudo || "Player"; // Fetch pseudo from database
-            
-            get(userScoreRef).then((scoreSnapshot) => {
-            let bestTime = scoreSnapshot.exists() ? scoreSnapshot.val().time : Infinity;
-            if (time < bestTime) {
-                set(userScoreRef, { pseudo, time }); // Save best time with correct pseudo
+            if (snapshot.exists()) {
+                const pseudo = snapshot.val().pseudo || "Player"; // Fetch pseudo from database
+
+                get(userScoreRef).then((scoreSnapshot) => {
+                    let bestTime = scoreSnapshot.exists() ? scoreSnapshot.val().time : Infinity;
+                    if (time < bestTime) {
+                        set(userScoreRef, { pseudo, time }); // Save best time with correct pseudo
+                    }
+                });
             }
-            });
-        }
         }).catch((error) => {
-        console.error("Error fetching user data:", error);
+            console.error("Error fetching user data:", error);
         });
     }
 
@@ -122,36 +141,45 @@ function Game() {
 
     return (
         <div className="game-container">
-        <div className="game-header">
-            <h1>⏳ Time: {timer}s</h1>
-            <button onClick={handlePause} className="pause-button">⏸</button>
-        </div>
-        <div className="grid">
-            {cards.map((card, index) => (
-            <div
-                key={index}
-                className={`card ${flipped.includes(index) || matched.includes(index) ? "flipped" : ""}`}
-                onClick={() => handleCardClick(index)}
-            >
-                {flipped.includes(index) || matched.includes(index) ? (
-                <img src={card} alt="Game Card" width="120" />
-                ) : (
-                <img src={cardBack} alt="Game Card" width="120" />
-                )}
-            </div>
-            ))}
-        </div>
+            {/* Show loading screen before game starts */}
+            {loading ? (
+                <div className="loading-screen">
+                    <h2>🚀 Loading Game...</h2>
+                </div>
+            ) : (
+                <>
+                    <div className="game-header">
+                        <h1>⏳ Time: {timer}s</h1>
+                        <button onClick={handlePause} className="pause-button">⏸</button>
+                    </div>
+                    <div className="grid">
+                        {cards.map((card, index) => (
+                            <div
+                                key={index}
+                                className={`card ${flipped.includes(index) || matched.includes(index) ? "flipped" : ""}`}
+                                onClick={() => handleCardClick(index)}
+                            >
+                                {flipped.includes(index) || matched.includes(index) ? (
+                                    <img src={card} alt="Game Card" width="120" loading="eager" />
+                                ) : (
+                                    <img src={cardBack} alt="Game Card" width="120" loading="lazy" />
+                                )}
+                            </div>
+                        ))}
+                    </div>
 
-        {/* Pause Modal */}
-        {isPaused && (
-            <div className="pause-modal">
-            <div className="pause-content">
-                <button onClick={handleResume}>▶ Resume</button>
-                <button onClick={handleRestart}>🔄 Restart</button>
-                <button onClick={() => navigate("/")}>🏠 Go Home</button>
-            </div>
-            </div>
-        )}
+                    {/* Pause Modal */}
+                    {isPaused && (
+                        <div className="pause-modal">
+                            <div className="pause-content">
+                                <button onClick={handleResume}>▶ Resume</button>
+                                <button onClick={handleRestart}>🔄 Restart</button>
+                                <button onClick={() => navigate("/")}>🏠 Go Home</button>
+                            </div>
+                        </div>
+                    )}
+                </>
+            )}
         </div>
     );
 }
